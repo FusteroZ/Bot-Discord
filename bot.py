@@ -48,7 +48,7 @@ async def hola(ctx):
     if ctx.author.id == 703614649781977093:
         await ctx.send(f'Suicidate puto retrasado subnormal, hijo de puta {ctx.author.mention}')  # Ignorar mensajes de otros bots
     else:
-        await ctx.send(f'¡Hola {ctx.author.mention}! ¿En qué puedo ayudarte?')
+        await ctx.send(f'¡Hola {ctx.author.mention}! ¿¿¿En qué puedo ayudarte???')
 
 # Comando: !ping (para ver la latencia)
 @bot.command()
