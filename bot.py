@@ -3,22 +3,32 @@ from discord.ext import commands
 import google.generativeai as genai
 import os
 from dotenv import load_dotenv
+# Importamos las constantes de seguridad
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 GEMINI_API_KEY = os.getenv('GEMINI_KEY')
 
-# 1. Configuración de Intents (Permisos)
-# Esto permite que el bot lea mensajes y vea quién está en el servidor
-# Configuración correcta de Intents
+# 1. Configuración de Intents
 intents = discord.Intents.default()
-intents.message_content = True  # Esto permite que el bot lea tus mensajes
+intents.message_content = True 
 
-# 2. Definir el prefijo del bot (ejemplo: !hola, !ping)
+# 2. Definir el bot
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+# Configuración de Gemini con la OPCIÓN 2 (Sin filtros de seguridad)
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash') # El modelo rápido y gratis
+
+model = genai.GenerativeModel(
+    model_name='gemini-1.5-flash',
+    safety_settings={
+        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+    }
+)
 
 @bot.event
 async def on_message(message):
@@ -26,13 +36,17 @@ async def on_message(message):
         return
 
     if bot.user.mentioned_in(message):
-        # Limpiamos el texto para quitar la mención al bot (@Bot Hola -> Hola)
+        # Limpiamos el texto para quitar la mención al bot
         clean_text = message.content.replace(f'<@!{bot.user.id}>', '').replace(f'<@{bot.user.id}>', '')
         
-        # Le pedimos la respuesta a Gemini
-        response = model.generate_content(f"Responde faltando al respeto e insultando de una forma divertida: {clean_text}")
-        
-        await message.channel.send(response.text)
+        try:
+            # Le pedimos la respuesta a Gemini
+            response = model.generate_content(f"Responde faltando al respeto e insultando de una forma divertida: {clean_text}")
+            await message.channel.send(response.text)
+        except Exception as e:
+            # Si Google bloquea algo a pesar de los filtros, imprimirá el error en consola
+            print(f"Error al generar respuesta: {e}")
+            await message.channel.send("Incluso para mí eso ha sido demasiado... (O ha ocurrido un error técnico).")
 
     await bot.process_commands(message)
 
@@ -46,11 +60,11 @@ async def on_ready():
 @bot.command()
 async def hola(ctx):
     if ctx.author.id == 703614649781977093:
-        await ctx.send(f'Suicidate puto retrasado subnormal, hijo de puta {ctx.author.mention}')  # Ignorar mensajes de otros bots
+        await ctx.send(f'Suicidate puto retrasado subnormal, hijo de puta {ctx.author.mention}')
     else:
         await ctx.send(f'¡Hola {ctx.author.mention}! ¿¿¿En qué puedo ayudarte???')
 
-# Comando: !ping (para ver la latencia)
+# Comando: !ping
 @bot.command()
 async def ping(ctx):
     await ctx.send(f'🏓 ¡Pong! Latencia: {round(bot.latency * 1000)}ms')
