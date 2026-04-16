@@ -41,7 +41,7 @@ async def on_message(message):
         
         try:
             # Le pedimos la respuesta a Gemini
-            response = model.generate_content(f"Responde faltando al respeto e insultando de una forma divertida: {clean_text}")
+            response = model.generate_content(f"Responde faltando al respeto de la peor forma que puedas a: {clean_text}")
             await message.channel.send(response.text)
         except Exception as e:
             # Si Google bloquea algo a pesar de los filtros, imprimirá el error en consola
