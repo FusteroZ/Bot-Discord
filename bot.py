@@ -4,6 +4,9 @@ from groq import Groq
 from dotenv import load_dotenv
 import os
 from collections import deque
+import random
+import psycopg2
+from psycopg2 import Error
 
 # 1. CONFIGURACIÓN DE LLAVES Y VARIABLES
 load_dotenv()
@@ -132,6 +135,71 @@ async def hola(ctx):
         await ctx.send(f'¡Hola padre! Qué alegría verle. {ctx.author.mention}')
     else:
         await ctx.send(f'Hola {ctx.author.mention}, no me molestes mucho.')
+
+@bot.command()
+async def dame(ctx):
+    conexion = None
+    try:
+        # 1. Establecer la conexión con los datos de tu servidor
+        conexion = psycopg2.connect(
+            user="tu_usuario",
+            password="tu_contraseña",
+            host="localhost",     # O la IP de tu servidor
+            port="5432",          # Puerto por defecto de Postgres
+            database="nombre_bd"
+        )
+
+        # 2. Crear un cursor para ejecutar sentencias SQL
+        with conexion.cursor() as cursor:
+            # Consulta para traer los cromos con stock disponible
+            cursor.execute("SELECT Nombre, Probabilidad FROM Cromo WHERE Cantidad > 0;")
+            result = cursor.fetchall()
+            
+            # Verificamos si la base de datos nos devolvió al menos un cromo con stock
+            if result:
+                cromos = [fila[0] for fila in result]
+                probabilidades = [fila[1] for fila in result]
+                
+                # Sorteo con pesos de probabilidad
+                cromo = random.choices(cromos, weights=probabilidades, k=1)[0]
+
+                # Decrementamos la cantidad del cromo seleccionado (Operación atómica)
+                cursor.execute("UPDATE Cromo SET Cantidad = Cantidad - 1 WHERE Nombre = %s;", (cromo,))
+                conexion.commit()
+
+                # Consulta para obtener la dirección de la imagen del cromo premiado
+                cursor.execute("SELECT Direccion FROM Cromo WHERE Nombre = %s;", (cromo,))
+                result_direccion = cursor.fetchone()
+                direccion = result_direccion[0] if result_direccion else "No disponible"
+
+                # 3. Lógica para enviar la imagen y el mensaje a Discord
+                if direccion != "No disponible":
+                    try:
+                        # Abrimos el archivo en modo lectura de bytes
+                        with open(direccion, 'rb') as archivo_imagen:
+                            imagen_discord = discord.File(archivo_imagen, filename="cromo.png")
+                            await ctx.send(f"🎉 ¡{ctx.author.mention}, te ha tocado el cromo: **{cromo}**! 🎉", file=imagen_discord)
+                    except FileNotFoundError:
+                        # Si la ruta guardada en la BD no existe físicamente en el disco duro
+                        await ctx.send(f"🎉 ¡Te tocó **{cromo}**! Pero hubo un problema al cargar su imagen en el servidor.")
+                else:
+                    # Si en la base de datos la dirección era NULL o no se encontró
+                    await ctx.send(f"🎉 ¡Te tocó **{cromo}**! (Este cromo no tiene imagen registrada).")
+            
+            else:
+                # Si no había ningún cromo con Cantidad > 0
+                await ctx.send("Lo sentimos, en este momento no quedan cromos disponibles en la tienda.")
+
+    except Error as e:
+        print(f"Error al conectar a la base de datos: {e}")
+        await ctx.send("Hubo un error técnico al intentar conectar con la base de datos de cromos.")
+
+    finally:
+        # 4. Asegurar que la conexión física se cierre al terminar
+        if conexion:
+            conexion.close()
+            print("Conexión a PostgreSQL cerrada de forma segura.")
+        
 
 @bot.command()
 async def ping(ctx):
